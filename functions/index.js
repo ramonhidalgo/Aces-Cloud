@@ -27,7 +27,7 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 			snapshot.forEach(child => {
 				console.log(child.key);
 				// childData - hold the values of the notif (can access properties ex. childData.notifTimestamp)
-				var childData = child.val()
+				const childData = child.val()
 				console.log(child.key + ": " + "timestamp: " + childData.notifTimestamp)
 				
 				// If the notifTimestamp is in the past, then swap data and send notif        
@@ -71,6 +71,7 @@ function sendNotif(articleData, key) {
 		},
 		body
 	})
+	console.log(result)
 }
 
 
@@ -78,13 +79,12 @@ function sendNotif(articleData, key) {
 
 exports.incrementViews = functions.https.onCall((data, context) => {
   const articleID = data.id;
-  return database.ref('/articles/'+articleID+'/views').once('value', 
+  return admin.database().ref('/articles/'+articleID+'/views').once('value', 
     snapshot =>{
       // List of database operations (acts like a queue)
       const dataBaseOps = [];
-      dataBaseOps.push(database.ref('/articles/'+articleID+'/views').set(Number(snapshot.val()+1)));
-      
+      dataBaseOps.push(admin.database().ref('/articles/'+articleID+'/views').set(Number(snapshot.val()+1)));
+      // Execute all the queued database operations
+      Promise.all(dataBaseOps);
     });
-    // Execute all the queued database operations
-    Promise.all(dataBaseOps);
 });
