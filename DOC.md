@@ -8,7 +8,7 @@ incrementViews({ id: 'THE_ID_OF_THE_ARTICLE' }).then((result) => {
     const result = result.data.status;
   });
 ```
- ## Java
+## Java
 ```java
 FirebaseFunctions functions = FirebaseFunctions.getInstance();
 public Task<String> incrementViews(String articleId) {
@@ -27,5 +27,12 @@ public Task<String> incrementViews(String articleId) {
                     return result;
                 }
             });
+}
+```
+## Swift
+```swift
+lazy var functions = Functions.functions()
+functions.httpsCallable("incrementViews").call(["id": THE_ID_OF_THE_ARTICLE ]) { (result, error) in
+  // Do something with the result (for this function, there won't be anything to do with the result)
 }
 ```
