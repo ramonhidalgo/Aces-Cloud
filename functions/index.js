@@ -1,5 +1,6 @@
-const functions = require("firebase-functions");
-const admin = require('firebase-admin');
+const functions = require("firebase-functions")
+const admin = require('firebase-admin')
+const fetch = require('node-fetch')
 
 // Switch Database to ahs-app
 const ahsApp = Object.assign({}, functions.config().firebase)
@@ -12,10 +13,10 @@ const database = admin.database()
 let secrets
 database.ref('secrets').once('value',snapshot=>secrets=snapshot.val())
 
-exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun((context) => {
+exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun((context) => {
 
+	console.log(`checking notifs at [${new Date().toISOString()}]`);
 	const currentTime = Math.trunc(Date.now() / 1000);
-	console.log(`checking notifications at ${currentTime}`);
 
 	database.ref("pendingNotifs").once('value',
 		snapshot => {
@@ -27,12 +28,14 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 
 				const articleID = child.key
 				const notif = child.val()
-				console.log(`notification [${articleID}] will be sent at ${notif.notifTimestamp}`)
+
+				const formattedDate = new Date(1000*notif.notifTimestamp).toISOString()
+				console.log(`notif <${articleID}> will be sent at [${formattedDate}]`)
 				
 				// If the notifTimestamp is in the past, then swap data and send notif        
 				if (notif.notifTimestamp < currentTime) return false
 				
-				console.log(`sending ${articleID}...`);
+				console.log(`sending <${articleID}>...`);
 				// Change notif timestamp to time of push
 				notif.notifTimestamp = currentTime
 				// Swap Data
@@ -49,7 +52,7 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 
 })
 
-function sendNotif(notif, articleID) {
+async function sendNotif(notif, articleID) {
 	// Construct the message
 	const message = {
 		notification: {
@@ -62,7 +65,7 @@ function sendNotif(notif, articleID) {
 	// Convert message into string
 	const body = JSON.stringify(message)
 	// Post request with fetch()
-	const result = fetch('https://fcm.googleapis.com/fcm/send', {
+	const result = await fetch('https://fcm.googleapis.com/fcm/send', {
 		method: 'POST',
 		headers: {
 			'Authorization': secrets.messaging,

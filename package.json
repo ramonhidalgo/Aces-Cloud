@@ -1,0 +1,19 @@
+{
+  "name": "ahs-firebase-functions",
+  "version": "1.0.0",
+  "description": "Automating various publication and notification processes for the AHS app database.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahsappdevteam/firebase-functions.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ahsappdevteam/firebase-functions/issues"
+  },
+  "homepage": "https://github.com/ahsappdevteam/firebase-functions#readme"
+}
