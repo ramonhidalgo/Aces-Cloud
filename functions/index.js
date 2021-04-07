@@ -73,7 +73,6 @@ async function sendNotif(notif, articleID) {
 		},
 		body
 	})
-	console.log(result)
 }
 
 
