@@ -15,14 +15,14 @@ const database = admin.database()
 let secrets
 database.ref('secrets').once('value',snapshot=>secrets=snapshot.val())
 
-exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun((context) => {
+exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async (context) => {
 
 	console.log(`checking notifs at [${new Date().toISOString()}]`);
 	const currentTime = Math.trunc(Date.now() / 1000);
 
 	return database
 	 .ref('pendingNotifs')
-	 .once('value')
+	 .get()
 	 .then(snapshot=>Object.entries(snapshot.val()))
 	 .filter( ([ , notif ]) => notif.notifTimestamp < currentTime )
 	 .forEach( ([ articleID, notif ]) => {
