@@ -20,10 +20,9 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 	console.log(`checking notifs at [${new Date().toISOString()}]`);
 	const currentTime = Math.trunc(Date.now() / 1000);
 
-	return database
-	 .ref('pendingNotifs')
-	 .get()
-	 .then(snapshot=>Object.entries(snapshot.val()))
+	const snapshot = await database.ref('pendingNotifs').get()
+	const pendingNotifs = await snapshot.val()
+	Object.entries(pendingNotifs)
 	 .filter( ([ , notif ]) => notif.notifTimestamp < currentTime )
 	 .forEach( ([ articleID, notif ]) => {
 
