@@ -13,14 +13,13 @@ let secrets
 database.ref('secrets').once('value',snapshot=>secrets=snapshot.val())
 
 exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun((context) => {
-	console.log('Check Messages!');
-	const currentTime = Math.trunc(Date.now() / 1000);
 
-	const pendingRef = database.ref("pendingNotifs")
-	console.log("Current Time: " + currentTime);
-	return pendingRef.once('value',
+	const currentTime = Math.trunc(Date.now() / 1000);
+	console.log(`checking notifications at ${currentTime}`);
+
+	database.ref("pendingNotifs").once('value',
 		snapshot => {
-			console.log(snapshot.numChildren());
+			console.log(`${snapshot.numChildren()} pending notif`)
 			// List of database operations (acts like a queue)
 			const dataBaseOps = [];
 			// Loop through each child
@@ -28,17 +27,17 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 
 				const articleID = child.key
 				const notif = child.val()
-				console.log(`notification "${articleID}" will be sent at ${notif.notifTimestamp}`)
+				console.log(`notification [${articleID}] will be sent at ${notif.notifTimestamp}`)
 				
 				// If the notifTimestamp is in the past, then swap data and send notif        
 				if (notif.notifTimestamp < currentTime) return false
 				
 				console.log(`sending ${articleID}...`);
 				// Change notif timestamp to time of push
-				childData.notifTimestamp = currentTime
+				notif.notifTimestamp = currentTime
 				// Swap Data
 				dataBaseOps.push(
-					database.ref('pendingNotifs/' + articleID).remove(),
+					// database.ref('pendingNotifs/' + articleID).remove(),
 					database.ref('notifications/' + articleID).set(notif)
 				)
 				// Send Notif
