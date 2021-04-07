@@ -40,7 +40,7 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 				dataBaseOps.push(database.ref('pendingNotifs/' + child.key).remove())
 				dataBaseOps.push(database.ref('notifications/' + child.key).set(childData))
 				// Send Notif
-				sendNotif(articleData, child.key);
+				sendNotif(childData, child.key);
 			})
 			// Execute all the queued database operations
 			Promise.all(dataBaseOps);
