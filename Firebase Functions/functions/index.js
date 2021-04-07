@@ -73,8 +73,7 @@ exports.incrementViews = functions.https.onCall((data, context) => {
       // List of database operations (acts like a queue)
       const dataBaseOps = [];
       dataBaseOps.push(admin.database().ref('/articles/'+articleID+'/views').set(Number(snapshot.val()+1)));
-      
+      // Execute all the queued database operations
+      Promise.all(dataBaseOps);
     });
-    // Execute all the queued database operations
-    Promise.all(dataBaseOps);
 });
