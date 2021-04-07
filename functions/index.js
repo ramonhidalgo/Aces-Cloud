@@ -1,3 +1,5 @@
+const DEBUG = true
+
 const functions = require("firebase-functions")
 const admin = require('firebase-admin')
 const fetch = require('node-fetch')
@@ -18,35 +20,24 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun((conte
 	console.log(`checking notifs at [${new Date().toISOString()}]`);
 	const currentTime = Math.trunc(Date.now() / 1000);
 
-	return database.ref("pendingNotifs").once('value', snapshot => {
-		console.log(`${snapshot.numChildren()} pending notif`)
-		// List of database operations (acts like a queue)
-		const dataBaseOps = [];
-		// Loop through each child
-		snapshot.forEach(child => {
+	return database
+	 .ref('pendingNotifs')
+	 .once('value')
+	 .then(snapshot=>Object.entries(snapshot.val()))
+	 .filter( ([ , notif ]) => notif.notifTimestamp < currentTime )
+	 .forEach( ([ articleID, notif ]) => {
 
-			const articleID = child.key
-			const notif = child.val()
+		console.log(`sending <${articleID}>...`);
 
-			const formattedDate = new Date(1000*notif.notifTimestamp).toISOString()
-			console.log(`notif <${articleID}> will be sent at [${formattedDate}]`)
-			
-			// If the notifTimestamp is in the past, then swap data and send notif        
-			if (notif.notifTimestamp < currentTime) return false
-			
-			console.log(`sending <${articleID}>...`);
-			// Change notif timestamp to time of push
-			notif.notifTimestamp = currentTime
-			// Swap Data
-			dataBaseOps.push(
-				// database.ref('pendingNotifs/' + articleID).remove(),
-				database.ref('notifications/' + articleID).set(notif)
-			)
-			// Send Notif
-			sendNotif(notif, articleID);
-		})
-		// Execute all the queued database operations
-		Promise.all(dataBaseOps);
+		// Change notif timestamp to time of push
+		notif.notifTimestamp = currentTime
+
+		// Swap Data
+		if(!DEBUG) database.ref('pendingNotifs/' + articleID).remove()
+		database.ref('notifications/' + articleID).set(notif)
+
+		// Send Notif
+		sendNotif(notif, articleID)
 	})
 })
 
