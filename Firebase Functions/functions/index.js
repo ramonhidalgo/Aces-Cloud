@@ -7,10 +7,10 @@ ahsApp.databaseURL = 'https://ahs-app.firebaseio.com/'
 admin.initializeApp(ahsApp)
 
 
-exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun((context) => {
+exports.checkPendingNotifs = functions.pubsub.schedule('every 1 minutes').onRun((context) => {
   console.log('Check Messages!');
-   var currentTime = Math.trunc(Date.now()/1000);
-
+  var currentTime = Math.trunc(Date.now()/1000);
+  getMessagingSecret();
   const pendingRef = admin.database().ref("pendingNotifs");
   console.log("Current Time: " + currentTime);
   return pendingRef.once('value', 
@@ -41,21 +41,35 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 
 });
 
-function sendNotif(articleData, key) {
-  // Construct the message
-  var message = {
-    notification:{title: articleData.title, body: articleData.notif},
-    data:{articleID: key},
-    to: '/topics/' + articleData.categoryID
-  };
-  // Convert message into string
-  var body = JSON.stringify(message);
-  // Post request with fetch()
-  var result = await fetch('https://fcm.googleapis.com/fcm/send',
-    { method: 'POST',
-      headers: {'Authorization': secrets.messaging,'Content-Type': 'application/json'
-      },
-      body: body}
-  )
+async function sendNotif(articleData, key) {
+  admin.database().ref('secrets/messaging').once('value', 
+  snapshot => {
+    var messagingSecret = snapshot.val();
+
+  });
+  
+}
+
+async function getMessagingSecret(){
+  return admin.database().ref('secrets/messaging').once('value', 
+  snapshot => {
+    // Get secrets
+    var messagingSecret = snapshot.val();
+    // Construct the message
+    var message = {
+      notification:{title: articleData.title, body: articleData.notif},
+      data:{articleID: key},
+      to: '/topics/' + articleData.categoryID
+    };
+    // Convert message into string
+    var body = JSON.stringify(message);
+    // Post request with fetch()
+    fetch('https://fcm.googleapis.com/fcm/send',
+      { method: 'POST',
+        headers: {'Authorization': messagingSecret,'Content-Type': 'application/json'
+        },
+        body: body}
+    )
+    });
 }
 
