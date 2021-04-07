@@ -24,17 +24,20 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 			snapshot.forEach(child => {
 				console.log(child.key);
 				// childData - hold the values of the notif (can access properties ex. childData.notifTimestamp)
-				var childData = child.val();
-				console.log(child.key + ": " + "timestamp: " + childData.notifTimestamp);
+				var childData = child.val()
+				console.log(child.key + ": " + "timestamp: " + childData.notifTimestamp)
+				
 				// If the notifTimestamp is in the past, then swap data and send notif        
-				if (Number(childData.notifTimestamp) >= currentTime) {
-					console.log("Transfer Ready " + child.key);
-					// Swap Data
-					dataBaseOps.push(admin.database().ref('pendingNotifs/' + child.key).remove());
-					dataBaseOps.push(admin.database().ref('notifications/' + child.key).set(childData));
-					// Send Notif
-					sendNotif(articleData, child.key);
-				}
+				if (Number(childData.notifTimestamp) < currentTime) return false
+				
+				console.log("Transfer Ready " + child.key);
+				// Change notif timestamp to time of push
+				childData.notifTimestamp = currentTime
+				// Swap Data
+				dataBaseOps.push(admin.database().ref('pendingNotifs/' + child.key).remove())
+				dataBaseOps.push(admin.database().ref('notifications/' + child.key).set(childData))
+				// Send Notif
+				sendNotif(articleData, child.key);
 			})
 			// Execute all the queued database operations
 			Promise.all(dataBaseOps);
