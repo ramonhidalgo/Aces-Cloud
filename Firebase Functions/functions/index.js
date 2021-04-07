@@ -4,8 +4,7 @@ const admin = require('firebase-admin');
 // Switch Database to ahs-app
 const ahsApp = Object.assign({}, functions.config().firebase)
 ahsApp.databaseURL = 'https://ahs-app.firebaseio.com/'
-admin.initializeApp(ahsApp)
-
+admin.initializeApp(ahsApp);
 
 exports.checkPendingNotifs = functions.pubsub.schedule('every 1 minutes').onRun((context) => {
   console.log('Check Messages!');
@@ -33,13 +32,34 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 1 minutes').onRun(
             // Send Notif
             sendNotif(articleData, child.key);
 
-          }
-        });
-        // Execute all the queued database operations
-        Promise.all(dataBaseOps);
-      });
+	const pendingRef = admin.database().ref("pendingNotifs");
+	console.log("Current Time: " + currentTime);
+	return pendingRef.once('value',
+		snapshot => {
+			console.log(snapshot.numChildren());
+			// List of database operations (acts like a queue)
+			const dataBaseOps = [];
+			// Loop through each child
+			snapshot.forEach(child => {
+				console.log(child.key);
+				// childData - hold the values of the notif (can access properties ex. childData.notifTimestamp)
+				var childData = child.val();
+				console.log(child.key + ": " + "timestamp: " + childData.notifTimestamp);
+				// If the notifTimestamp is in the past, then swap data and send notif        
+				if (Number(childData.notifTimestamp) >= currentTime) {
+					console.log("Transfer Ready " + child.key);
+					// Swap Data
+					dataBaseOps.push(admin.database().ref('pendingNotifs/' + child.key).remove());
+					dataBaseOps.push(admin.database().ref('notifications/' + child.key).set(childData));
+					// Send Notif
+					sendNotif(articleData, child.key);
+				}
+			})
+			// Execute all the queued database operations
+			Promise.all(dataBaseOps);
+		})
 
-});
+})
 
 async function sendNotif(articleData, key) {
   admin.database().ref('secrets/messaging').once('value', 
@@ -72,4 +92,3 @@ async function getMessagingSecret(){
     )
     });
 }
-
