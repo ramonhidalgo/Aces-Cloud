@@ -18,38 +18,36 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun((conte
 	console.log(`checking notifs at [${new Date().toISOString()}]`);
 	const currentTime = Math.trunc(Date.now() / 1000);
 
-	database.ref("pendingNotifs").once('value',
-		snapshot => {
-			console.log(`${snapshot.numChildren()} pending notif`)
-			// List of database operations (acts like a queue)
-			const dataBaseOps = [];
-			// Loop through each child
-			snapshot.forEach(child => {
+	return database.ref("pendingNotifs").once('value', snapshot => {
+		console.log(`${snapshot.numChildren()} pending notif`)
+		// List of database operations (acts like a queue)
+		const dataBaseOps = [];
+		// Loop through each child
+		snapshot.forEach(child => {
 
-				const articleID = child.key
-				const notif = child.val()
+			const articleID = child.key
+			const notif = child.val()
 
-				const formattedDate = new Date(1000*notif.notifTimestamp).toISOString()
-				console.log(`notif <${articleID}> will be sent at [${formattedDate}]`)
-				
-				// If the notifTimestamp is in the past, then swap data and send notif        
-				if (notif.notifTimestamp < currentTime) return false
-				
-				console.log(`sending <${articleID}>...`);
-				// Change notif timestamp to time of push
-				notif.notifTimestamp = currentTime
-				// Swap Data
-				dataBaseOps.push(
-					// database.ref('pendingNotifs/' + articleID).remove(),
-					database.ref('notifications/' + articleID).set(notif)
-				)
-				// Send Notif
-				sendNotif(notif, articleID);
-			})
-			// Execute all the queued database operations
-			Promise.all(dataBaseOps);
+			const formattedDate = new Date(1000*notif.notifTimestamp).toISOString()
+			console.log(`notif <${articleID}> will be sent at [${formattedDate}]`)
+			
+			// If the notifTimestamp is in the past, then swap data and send notif        
+			if (notif.notifTimestamp < currentTime) return false
+			
+			console.log(`sending <${articleID}>...`);
+			// Change notif timestamp to time of push
+			notif.notifTimestamp = currentTime
+			// Swap Data
+			dataBaseOps.push(
+				// database.ref('pendingNotifs/' + articleID).remove(),
+				database.ref('notifications/' + articleID).set(notif)
+			)
+			// Send Notif
+			sendNotif(notif, articleID);
 		})
-
+		// Execute all the queued database operations
+		Promise.all(dataBaseOps);
+	})
 })
 
 async function sendNotif(notif, articleID) {
@@ -80,7 +78,7 @@ async function sendNotif(notif, articleID) {
 
 exports.incrementViews = functions.https.onCall((data, context) => {
   const articleID = data.id;
-  return admin.database().ref('/articles/'+articleID+'/views').once('value', 
+  return database.ref('/articles/'+articleID+'/views').once('value', 
     snapshot =>{
       // List of database operations (acts like a queue)
       const dataBaseOps = [];
