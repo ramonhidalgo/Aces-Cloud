@@ -5,61 +5,45 @@ const admin = require('firebase-admin')
 const fetch = require('node-fetch')
 
 // Switch Database to ahs-app
-const ahsApp = Object.assign({}, functions.config().firebase)
-
-ahsApp.databaseURL = 'https://ahs-app.firebaseio.com/'
-admin.initializeApp(ahsApp);
+const config = Object.assign({}, functions.config().firebase)
+config.databaseURL = 'https://ahs-app.firebaseio.com/'
+admin.initializeApp(config);
 
 const database = admin.database()
 
-let secrets
-database.ref('secrets').once('value',snapshot=>secrets=snapshot.val())
 
 exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async (context) => {
-
-	console.log(`checking notifs at [${new Date().toISOString()}]`);
-	const currentTime = Math.trunc(Date.now() / 1000);
-
-	const snapshot = await database.ref('pendingNotifs').get()
-	const pendingNotifs = await snapshot.val()
-	Object.entries(pendingNotifs)
-	 .filter( ([ , notif ]) => notif.notifTimestamp < currentTime )
-	 .forEach( ([ articleID, notif ]) => {
-
-		console.log(`sending <${articleID}>...`);
-
-		// Change notif timestamp to time of push
-		notif.notifTimestamp = currentTime
-
-		// Swap Data
-		if(!DEBUG) database.ref('pendingNotifs/' + articleID).remove()
-		database.ref('notifications/' + articleID).set(notif)
-
-		// Send Notif
-		sendNotif(notif, articleID)
+	const now = Math.trunc(Date.now()/1000)
+	const pendingNotifs = await database.ref('pendingNotifs').get().then(x=>x.val())
+	Object.entries(pendingNotifs || {})
+	.filter( ([id,notif]) => notif.notifTimestamp < now )
+	.map( ([id,notif]) => ([_,Object.assign(notif,{notifTimestamp:now})]) )
+	.forEach( ([id,notif]) => {
+		if(!DEBUG) database.ref('pendingNotifs/' + id).remove()
+		database.ref('notifications/' + id).set(notif)
+		pushNotif(id, notif)
+		console.log(`sent <${id}>`)
 	})
+	return true
 })
 
-async function sendNotif(notif, articleID) {
-	// Construct the message
-	const message = {
+async function pushNotif(id, notif) {
+	const secrets = await database.ref('secrets').get().then(x=>x.val())
+	const payload = {
 		notification: {
 			title: notif.title,
 			body: notif.blurb
 		},
-		data: { articleID },
+		data: { articleID: id },
 		to: '/topics/' + notif.categoryID
-	};
-	// Convert message into string
-	const body = JSON.stringify(message)
-	// Post request with fetch()
-	const result = await fetch('https://fcm.googleapis.com/fcm/send', {
+	}
+	const response = await fetch('https://fcm.googleapis.com/fcm/send', {
 		method: 'POST',
 		headers: {
 			'Authorization': secrets.messaging,
 			'Content-Type': 'application/json'
 		},
-		body
+		body: JSON.stringify(payload)
 	})
 }
 
