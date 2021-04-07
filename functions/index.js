@@ -4,16 +4,19 @@ const admin = require('firebase-admin');
 // Switch Database to ahs-app
 const ahsApp = Object.assign({}, functions.config().firebase)
 
-const secrets = (await admin.database().ref('secrets')).val()
-
 ahsApp.databaseURL = 'https://ahs-app.firebaseio.com/'
 admin.initializeApp(ahsApp);
+
+const database = admin.database()
+
+let secrets
+database.ref('secrets').once('value',snapshot=>secrets=snapshot.val())
 
 exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun((context) => {
 	console.log('Check Messages!');
 	const currentTime = Math.trunc(Date.now() / 1000);
 
-	const pendingRef = admin.database().ref("pendingNotifs")
+	const pendingRef = database.ref("pendingNotifs")
 	console.log("Current Time: " + currentTime);
 	return pendingRef.once('value',
 		snapshot => {
@@ -34,8 +37,8 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 10 minutes').onRun
 				// Change notif timestamp to time of push
 				childData.notifTimestamp = currentTime
 				// Swap Data
-				dataBaseOps.push(admin.database().ref('pendingNotifs/' + child.key).remove())
-				dataBaseOps.push(admin.database().ref('notifications/' + child.key).set(childData))
+				dataBaseOps.push(database.ref('pendingNotifs/' + child.key).remove())
+				dataBaseOps.push(database.ref('notifications/' + child.key).set(childData))
 				// Send Notif
 				sendNotif(articleData, child.key);
 			})
@@ -60,7 +63,7 @@ function sendNotif(articleData, key) {
 	// Convert message into string
 	const body = JSON.stringify(message);
 	// Post request with fetch()
-	const result = await fetch('https://fcm.googleapis.com/fcm/send', {
+	const result = fetch('https://fcm.googleapis.com/fcm/send', {
 		method: 'POST',
 		headers: {
 			'Authorization': secrets.messaging,
@@ -75,11 +78,11 @@ function sendNotif(articleData, key) {
 
 exports.incrementViews = functions.https.onCall((data, context) => {
   const articleID = data.id;
-  return admin.database().ref('/articles/'+articleID+'/views').once('value', 
+  return database.ref('/articles/'+articleID+'/views').once('value', 
     snapshot =>{
       // List of database operations (acts like a queue)
       const dataBaseOps = [];
-      dataBaseOps.push(admin.database().ref('/articles/'+articleID+'/views').set(Number(snapshot.val()+1)));
+      dataBaseOps.push(database.ref('/articles/'+articleID+'/views').set(Number(snapshot.val()+1)));
       
     });
     // Execute all the queued database operations
