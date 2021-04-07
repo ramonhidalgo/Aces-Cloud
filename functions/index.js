@@ -58,7 +58,7 @@ function sendNotif(notif, articleID) {
 			body: notif.blurb
 		},
 		data: { articleID },
-		to: '/topics/' + articleData.categoryID
+		to: '/topics/' + notif.categoryID
 	};
 	// Convert message into string
 	const body = JSON.stringify(message)
