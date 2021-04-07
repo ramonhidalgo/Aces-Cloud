@@ -1,4 +1,5 @@
- ## Sample implementation of the incrementView Firebase Function in JS
+ ## Sample implementations of the incrementView Firebase Function
+ ### JS
  ```js
 const functions = firebase.functions();
 const incrementViews = functions.httpsCallable('incrementViews');
@@ -7,7 +8,7 @@ incrementViews({ id: 'THE_ID_OF_THE_ARTICLE' }).then((result) => {
     const result = result.data.status;
   });
 ```
-
+ ## Java
 ```java
 FirebaseFunctions functions = FirebaseFunctions.getInstance();
 public Task<String> incrementViews(String articleId) {
