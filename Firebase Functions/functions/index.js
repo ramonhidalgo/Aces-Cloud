@@ -61,16 +61,8 @@ exports.checkPendingNotifs = functions.pubsub.schedule('every 1 minutes').onRun(
 
 })
 
-async function sendNotif(articleData, key) {
-  admin.database().ref('secrets/messaging').once('value', 
-  snapshot => {
-    var messagingSecret = snapshot.val();
 
-  });
-  
-}
-
-async function getMessagingSecret(){
+async function sendNotif(){
   return admin.database().ref('secrets/messaging').once('value', 
   snapshot => {
     // Get secrets
