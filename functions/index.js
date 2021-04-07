@@ -1,5 +1,3 @@
-const DEBUG = false
-
 const functions = require("firebase-functions")
 const admin = require('firebase-admin')
 const fetch = require('node-fetch')
@@ -16,9 +14,9 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 	const pendingNotifs = await database.ref('pendingNotifs').get().then(x=>x.val())
 	return Object.entries(pendingNotifs || {})
 	.filter( ([id,notif]) => notif.notifTimestamp < now )
-	.map( ([id,notif]) => ([id,Object.assign(notif,{notifTimestamp:now})]) )
+	.map( ([id,notif]) => ([id,{...notif,notifTimestamp:now}]) )
 	.forEach( ([id,notif]) => {
-		if(!DEBUG) database.ref('pendingNotifs/' + id).remove()
+		database.ref('pendingNotifs/' + id).remove()
 		database.ref('notifications/' + id).set(notif)
 		pushNotif(id, notif)
 		discordNotif(id, notif)
