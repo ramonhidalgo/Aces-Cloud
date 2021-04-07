@@ -15,16 +15,15 @@ const database = admin.database()
 exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async (context) => {
 	const now = Math.trunc(Date.now()/1000)
 	const pendingNotifs = await database.ref('pendingNotifs').get().then(x=>x.val())
-	Object.entries(pendingNotifs || {})
+	return Object.entries(pendingNotifs || {})
 	.filter( ([id,notif]) => notif.notifTimestamp < now )
-	.map( ([id,notif]) => ([_,Object.assign(notif,{notifTimestamp:now})]) )
+	.map( ([id,notif]) => ([id,Object.assign(notif,{notifTimestamp:now})]) )
 	.forEach( ([id,notif]) => {
 		if(!DEBUG) database.ref('pendingNotifs/' + id).remove()
 		database.ref('notifications/' + id).set(notif)
 		pushNotif(id, notif)
 		console.log(`sent <${id}>`)
 	})
-	return true
 })
 
 async function pushNotif(id, notif) {
