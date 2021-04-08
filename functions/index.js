@@ -23,8 +23,6 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 		([id, notif]) => !sentNotifIDs.includes(id) && notif.notifTimestamp <= now 
 	)
 
-	console.log(sentNotifIDs, readyNotifs)
-
 	const readyNotifIDs = readyNotifs.map(
 		([id, notif]) => id
 	)
