@@ -1,6 +1,7 @@
-const functions = require("firebase-functions")
+const functions = require('firebase-functions')
 const admin = require('firebase-admin')
 const fetch = require('node-fetch')
+const { log, warn, error } = require('firebase-functions/lib/logger')
 
 admin.initializeApp({
 	...functions.config().firebase,
@@ -27,11 +28,13 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 		([id, notif]) => id
 	)
 
+	log(`saw ${readyNotifIDs.length} notifs ready to be sent`)
+
 	readyNotifs.forEach( ([id, notif]) => {
 		database.ref(`notifs/${id}/notifTimestamp`).set(now)
 		pushNotif(id, notif)
 		discordNotif(id, notif)
-		console.log(`sent <${id}>`)
+		log(`sent <${id}>: ${notif.title}`)
 	})
 
 	database.ref('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
