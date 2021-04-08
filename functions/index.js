@@ -10,22 +10,37 @@ admin.initializeApp({
 const database = admin.database()
 
 exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async () => {
+
 	const now = Math.trunc(Date.now()/1000)
-	const pendingNotifs = await database.ref('pendingNotifs').get().then(x=>x.val())
-	return Object.entries(pendingNotifs || {})
-	.filter( ([id,notif]) => notif.notifTimestamp < now )
-	.map( ([id,notif]) => ([id,{...notif,notifTimestamp:now}]) )
-	.forEach( ([id,notif]) => {
-		database.ref('pendingNotifs/' + id).remove()
-		database.ref('notifications/' + id).set(notif)
+
+	let sentNotifIDs = await database.ref('notifIDs').get().then(value) || []
+
+	const allNotifs = Object.entries(
+		await database.ref('notifs').get().then(value) || {}
+	)
+
+	const readyNotifs = allNotifs.filter(
+		([id, notif]) => !sentNotifIDs.includes(id) && notif.notifTimestamp <= now 
+	)
+
+	console.log(sentNotifIDs, readyNotifs)
+
+	const readyNotifIDs = readyNotifs.map(
+		([id, notif]) => id
+	)
+
+	readyNotifs.forEach( ([id, notif]) => {
+		database.ref(`notifs/${id}/notifTimestamp`).set(now)
 		pushNotif(id, notif)
 		discordNotif(id, notif)
 		console.log(`sent <${id}>`)
 	})
+
+	database.ref('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
 })
 
 async function pushNotif(id, notif) {
-	const auth = await database.ref('secrets/messaging').get().then(x=>x.val())
+	const auth = await database.ref('secrets/messaging').get().then(value)
 	const payload = {
 		notification: {
 			title: notif.title,
@@ -45,7 +60,7 @@ async function pushNotif(id, notif) {
 }
 
 async function discordNotif(id, notif) {
-	const url = 'https://' + await database.ref('secrets/webhook').get().then(x=>x.val())
+	const url = 'https://' + await database.ref('secrets/webhook').get().then(value)
 	const payload = {
 		username: 'Aces Cloud',
 		avatar_url: 'https://edit.ahs.app/icon.png',
@@ -67,6 +82,8 @@ async function discordNotif(id, notif) {
 }
 
 const rot13 = string => string.replace(/[a-z]/gi,c=>'NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm'['ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.indexOf(c)])
+
+const value = snapshot => snapshot.val()
 
 // VIEW COUNTER FUNCTION
 
