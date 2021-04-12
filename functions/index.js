@@ -11,32 +11,24 @@ admin.initializeApp({
 const database = admin.database()
 
 exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async () => {
-
 	const now = Math.trunc(Date.now()/1000)
-
-	let sentNotifIDs = await database.ref('notifIDs').get().then(value) || []
-
+	const sentNotifIDs = await database.ref('notifIDs').get().then(value) || []
 	const allNotifs = Object.entries(
 		await database.ref('notifs').get().then(value) || {}
 	)
-
 	const readyNotifs = allNotifs.filter(
 		([id, notif]) => !sentNotifIDs.includes(id) && notif.notifTimestamp <= now 
 	)
-
 	const readyNotifIDs = readyNotifs.map(
 		([id, notif]) => id
 	)
-
 	log(`saw ${readyNotifIDs.length} notifs ready to be sent`)
-
 	readyNotifs.forEach( ([id, notif]) => {
 		database.ref(`notifs/${id}/notifTimestamp`).set(now)
 		pushNotif(id, notif)
 		discordNotif(id, notif)
 		log(`sent <${id}>: ${notif.title}`)
 	})
-
 	database.ref('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
 })
 
