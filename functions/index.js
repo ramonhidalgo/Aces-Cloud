@@ -10,6 +10,19 @@ admin.initializeApp({
 
 const database = admin.database()
 
+exports.categoryThumbnails = functions.database.ref('snippets/{articleID}').onUpdate( async snapshot => {
+	const snippet = snapshot.val()
+	const categoryRef = database.ref('categories/'+snippet.categoryID)
+	const category = await categoryRef.get().then(value) || {}
+	const category.thumbURLs = category.articleIDs
+	.map( id => database.ref('snippets').get().then(value) )
+	.filter( snippet => 'thumbURLs' in snippet ) // select articles with images
+	.sort( (a,b) => b.featured - a.featured ) // prioritize featured articles
+	.slice(0, 3) // trim to first 4 articles
+	.map( snippet => snippet.thumbURLs[0] ) // map to image array
+	categoryRef.set(category)
+})
+
 exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async () => {
 	const now = Math.trunc(Date.now()/1000)
 	const sentNotifIDs = await database.ref('notifIDs').get().then(value) || []
