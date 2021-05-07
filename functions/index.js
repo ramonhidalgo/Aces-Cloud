@@ -14,7 +14,7 @@ exports.categoryThumbnails = functions.database.ref('snippets/{articleID}').onUp
 	const snippet = snapshot.val()
 	const categoryRef = database.ref('categories/'+snippet.categoryID)
 	const category = await categoryRef.get().then(value) || {}
-	const category.thumbURLs = category.articleIDs
+	category.thumbURLs = category.articleIDs
 	.map( id => database.ref('snippets').get().then(value) )
 	.filter( snippet => 'thumbURLs' in snippet ) // select articles with images
 	.sort( (a,b) => b.featured - a.featured ) // prioritize featured articles
@@ -47,15 +47,28 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 
 async function pushNotif(id, notif) {
 	const auth = await database.ref('secrets/messaging').get().then(value)
-	const payload = {
+	let payloads = [{
 		notification: {
 			title: notif.title,
 			body: notif.blurb
 		},
 		data: { articleID: id },
 		to: '/topics/' + notif.categoryID
-	}
-	const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+	}]
+
+	const legacyTopicID = {
+		General_Info: 'general',
+		District: 'district',
+		ASB: 'asb',
+		Academics: 'bulletin',
+		Athletics: 'bulletin',
+		Clubs: 'bulletin',
+		Colleges: 'bulletin',
+		Reference: 'bulletin',
+	}[notif.categoryID] || 'testing'
+	payloads.push({ ...payloads[0], ...{ to: '/topics/' + legacyTopicID } })
+
+	for(const payload of payloads) await fetch('https://fcm.googleapis.com/fcm/send', {
 		method: 'POST',
 		headers: {
 			'Authorization': auth,
