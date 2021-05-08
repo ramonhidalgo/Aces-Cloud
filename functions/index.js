@@ -30,7 +30,10 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 		await database.ref('notifs').get().then(value) || {}
 	)
 	const readyNotifs = allNotifs.filter(
-		([id, notif]) => !sentNotifIDs.includes(id) && notif.notifTimestamp <= now 
+		([id, notif]) =>
+		!sentNotifIDs.includes(id)
+		&& notif.notifTimestamp <= now 
+		&& notif.notifTimestamp >= now - 60*60*24
 	)
 	const readyNotifIDs = readyNotifs.map(
 		([id, notif]) => id
