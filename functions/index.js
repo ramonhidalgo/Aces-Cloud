@@ -8,26 +8,151 @@ admin.initializeApp({
 	databaseURL: 'https://ahs-app.firebaseio.com'
 });
 
-const database = admin.database()
+const db = admin.database()
+const dbLegacy = admin.database('https://arcadia-high-mobile.firebaseio.com')
 
-exports.categoryThumbnails = functions.database.ref('snippets/{articleID}').onUpdate( async snapshot => {
-	const snippet = snapshot.val()
-	const categoryRef = database.ref('categories/'+snippet.categoryID)
-	const category = await categoryRef.get().then(value) || {}
+exports.publishStory = functions.database.instance('ahs-app')
+.ref('/storys/{storyID}').onWrite( async (change, {params:{storyID}}) => {
+	const before = change.before.val()
+	const after = change.after.val()
+	const changes = diff(before,after)
+
+	// update mirrors
+
+	mirrorStory(after,storyID)
+	legacyStory(after,storyID)
+
+	// update pointers
+
+	if(someIn(changes,'categoryID') && 'categoryID' in before )
+		categoryStoryIDs(before.categoryID,storyID,false)
+
+	if(someIn(changes,'timestamp','categoryID'))
+		categoryStoryIDs(after.categoryID,storyID,true)
+
+	
+	// update thumbnails
+
+	if(someIn(changes,'categoryID'))
+		categoryThumbnail(before.categoryID)
+	
+	if(someIn(changes,'thumbURLs','categoryID'))
+		categoryThumbnail(after.categoryID)
+})
+
+/**
+ * Returns list of properties whose values are different between two objects 
+ * @param {Object} a 
+ * @param {Object} b 
+ * @returns {Array}
+ */
+function diff (a,b) { 
+	return Object.keys({ ...a, ...b })
+ 	.filter( k => JSON.stringify(a[k]||0) !== JSON.stringify(b[k]||0) )
+}
+
+/**
+ * Checks if an array includes any of the subset
+ * @param {any[]} array 
+ * @param  {...any} subset 
+ * @returns {Boolean}
+ */
+function someIn(array,...subset) {
+	return array.some(element=>subset.includes(element))
+}
+
+/**
+ * Mirrors a story into objects which have less properties & are quicker to access
+ * @param {Object} story 
+ * @param {string} storyID 
+ */
+async function mirrorStory(story,storyID){
+	const mirrors = ['article','snippet']
+	const schemas = await db.ref('schemas').get().then(value)
+	if(story.notified) mirrors.push('notif')
+	for(const type of mirrors){
+		const schema = Object.keys(schemas[type])
+		const mirror = Object.fromEntries(
+			Object.entries(story).filter(([key])=>schema.includes(key))
+		)
+		db.ref(type+'s').child(storyID).set(mirror)
+	}
+}
+
+/**
+ * Mirrors a story into the legacy database
+ * @param {Object} story 
+ * @param {story} storyID 
+ */
+async function legacyStory(story,storyID){
+	const schemas = await db.ref('schemas').get().then(value)
+	const legacyStory = {
+		...Object.fromEntries(
+			Object.entries(story)
+			.filter(([key])=>key in schemas.legacy)
+			.map(([key,value]) => [schemas.legacy[key],value])
+		),
+		...{
+			hasHTML: true,
+		}
+	}
+	legacyRef(story.categoryID).child(storyID).set(legacyStory)
+}
+
+/**
+ * Get the ref of a category in a legacy database
+ * @param {string} categoryID 
+ * @returns {string}
+ */
+ async function legacyRef(categoryID){
+	return dbLegacy.ref(Object.entries(await db.ref('locations').get().then(value)).find(
+		([,{categoryIDs}]) => categoryIDs.includes(categoryID)
+	)[0]).child(categoryID)
+}
+
+/**
+ * Generates thumbnails for a category
+ * @param {string} categoryID 
+ */
+async function categoryThumbnail(categoryID){
+	const categoryRef = db.ref('categories/'+categoryID)
+	const category = await categoryRef.get().then(value)
+	const snippets = await db.ref('snippets').get().then(value)
 	category.thumbURLs = category.articleIDs
-	.map( id => database.ref('snippets').get().then(value) )
+	.map( id => snippets[id] )
 	.filter( snippet => 'thumbURLs' in snippet ) // select articles with images
 	.sort( (a,b) => b.featured - a.featured ) // prioritize featured articles
 	.slice(0, 3) // trim to first 4 articles
 	.map( snippet => snippet.thumbURLs[0] ) // map to image array
+	log(category.thumbURLs)
 	categoryRef.set(category)
-})
+}
+
+/**
+ * Adds or removes a story to a category's articleIDs collection
+ * @param {string} categoryID 
+ * @param {string} storyID 
+ * @param {Boolean} insert 
+ */
+async function categoryStoryIDs(categoryID,storyID,insert){
+	const categoryRef = db.ref('categories/'+categoryID)
+	const category = await categoryRef.get().then(value)
+	const siblingIDs = category.articleIDs.filter(x=>x!==storyID)
+	if(insert){
+		const snippets = await db.ref('snippets').get().then(value)
+		const index = siblingIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
+		index < 0 ? siblingIDs.push(storyID) : siblingIDs.splice(index,0,id)
+	}else{
+		(await legacyRef(oldStory.categoryID)).child(storyID).remove()
+	}
+	categoryRef.child('articleIDs').set(siblingIDs)
+}
 
 exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async () => {
 	const now = Math.trunc(Date.now()/1000)
-	const sentNotifIDs = await database.ref('notifIDs').get().then(value) || []
+	const sentNotifIDs = await db.ref('notifIDs').get().then(value) || []
 	const allNotifs = Object.entries(
-		await database.ref('notifs').get().then(value) || {}
+		await db.ref('notifs').get().then(value) || {}
 	)
 	const readyNotifs = allNotifs.filter(
 		([id, notif]) =>
@@ -40,16 +165,16 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 	)
 	log(`saw ${readyNotifIDs.length} notifs ready to be sent`)
 	readyNotifs.forEach( ([id, notif]) => {
-		database.ref(`notifs/${id}/notifTimestamp`).set(now)
+		db.ref(`notifs/${id}/notifTimestamp`).set(now)
 		pushNotif(id, notif)
 		discordNotif(id, notif)
 		log(`sent <${id}>: ${notif.title}`)
 	})
-	database.ref('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
+	db.ref('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
 })
 
 async function pushNotif(id, notif) {
-	const auth = await database.ref('secrets/messaging').get().then(value)
+	const auth = await db.ref('secrets/messaging').get().then(value)
 	let payloads = [{
 		notification: {
 			title: notif.title,
@@ -82,7 +207,7 @@ async function pushNotif(id, notif) {
 }
 
 async function discordNotif(id, notif) {
-	const url = 'https://' + await database.ref('secrets/webhook').get().then(value)
+	const url = 'https://' + await db.ref('secrets/webhook').get().then(value)
 	const payload = {
 		username: 'Aces Cloud',
 		avatar_url: 'https://edit.ahs.app/icon.png',
@@ -111,7 +236,7 @@ const value = snapshot => snapshot.val()
 
 exports.incrementViews = functions.https.onCall((data, context) => {
   const articleID = data.id;
-  return database.ref('/articles/'+articleID+'/views').once('value', 
+  return db.ref('/articles/'+articleID+'/views').once('value', 
     snapshot =>{
       // List of database operations (acts like a queue)
       const dataBaseOps = [];
