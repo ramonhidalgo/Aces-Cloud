@@ -11,6 +11,12 @@ admin.initializeApp({
 const db = admin.database()
 const dbLegacy = admin.database('https://arcadia-high-mobile.firebaseio.com')
 
+/**
+ * Picking up from Aces's modification of the stories tree,
+ * this function realizes the effects of that change, such as
+ * mirrors of the story on the snippets tree and the legacy database,
+ * category articleID lists, category thumbnails, and Discord logs.
+ */
 exports.publishStory = functions.database.instance('ahs-app')
 .ref('/storys/{storyID}').onWrite( async (change, {params:{storyID}}) => {
 	const before = change.before.val()
@@ -30,7 +36,6 @@ exports.publishStory = functions.database.instance('ahs-app')
 	if(someIn(changes,'timestamp','categoryID'))
 		categoryStoryIDs(after.categoryID,storyID,true)
 
-	
 	// update thumbnails
 
 	if(someIn(changes,'categoryID'))
@@ -195,6 +200,11 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 	db.ref('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
 })
 
+/**
+ * Pushes a notification to Firebase Cloud notifications' REST API
+ * @param {string} id 
+ * @param {Object} notif 
+ */
 async function pushNotif(id, notif) {
 	const auth = await db.ref('secrets/messaging').get().then(value)
 	let payloads = [{
