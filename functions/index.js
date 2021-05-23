@@ -38,6 +38,10 @@ exports.publishStory = functions.database.instance('ahs-app')
 	
 	if(someIn(changes,'thumbURLs','categoryID'))
 		categoryThumbnail(after.categoryID)
+
+	// log to discord
+
+	discord( id, '✏️ ' + story.title, formattedDiff(before,after) )
 })
 
 /**
@@ -49,6 +53,24 @@ exports.publishStory = functions.database.instance('ahs-app')
 function diff (a,b) { 
 	return Object.keys({ ...a, ...b })
  	.filter( k => JSON.stringify(a[k]||0) !== JSON.stringify(b[k]||0) )
+}
+
+/**
+ * Returns a formatted list of properties and their before and after values
+ * @param {Object} a 
+ * @param {Object} b 
+ * @returns {String}
+ */
+ function formattedDiff (a,b) {
+	return diff(a,b)
+	.map( k =>
+		[k,a[k],b[k]]
+		.map( s => s === undefined ? null : s )
+		.map( JSON.stringify )
+		.map( s => s.length > 16 ? s.substring(0,16) + '...' : s )
+	)
+	.map(([k,a,b])=>`${k}: ${a} → ${b}`)
+	.join('\n')
 }
 
 /**
@@ -167,7 +189,7 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 	readyNotifs.forEach( ([id, notif]) => {
 		db.ref(`notifs/${id}/notifTimestamp`).set(now)
 		pushNotif(id, notif)
-		discordNotif(id, notif)
+		discord(id, '🔔 ' + notif.title, notif.blurb)
 		log(`sent <${id}>: ${notif.title}`)
 	})
 	db.ref('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
@@ -206,7 +228,13 @@ async function pushNotif(id, notif) {
 	})
 }
 
-async function discordNotif(id, notif) {
+/**
+ * Sends a message to the Discord webhook
+ * @param {string} id 
+ * @param {string} title 
+ * @param {string} description 
+ */
+async function discord(id='', title='', description='') {
 	const url = 'https://' + await db.ref('secrets/webhook').get().then(value)
 	const payload = {
 		username: 'Aces Cloud',
@@ -214,9 +242,9 @@ async function discordNotif(id, notif) {
 		content: '',
 		embeds: [{
 			color: 0x995eff,
-			url: 'https://editor.ahs.app/'+rot13(id),
-			title: '🔔 ' + notif.title,
-			description: notif.blurb,
+			url: 'https://editor.ahs.app/'+id,
+			title,
+			description,
 		}],
 	}
 	const response = await fetch(url, {
