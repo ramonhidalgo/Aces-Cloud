@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/ahsappdevteam/firebase-functions/issues"
   },
-  "homepage": "https://github.com/ahsappdevteam/firebase-functions#readme"
+  "homepage": "https://github.com/ahsappdevteam/firebase-functions#readme",
+  "dependencies": {
+    "firebase-functions": "^3.14.1"
+  }
 }
