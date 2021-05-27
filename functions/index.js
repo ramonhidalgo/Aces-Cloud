@@ -176,7 +176,7 @@ async function categoryStoryIDs(categoryID,storyID,insert){
 		const index = siblingIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
 		index < 0 ? siblingIDs.push(storyID) : siblingIDs.splice(index,0,id)
 	}else{
-		const ref = await legacyRef(oldStory.categoryID)
+		const ref = await legacyRef(categoryID)
 		ref.child(storyID).remove()
 	}
 	categoryRef.child('articleIDs').set(siblingIDs)
