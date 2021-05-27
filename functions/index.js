@@ -28,8 +28,8 @@ exports.publishStory = functions.database.instance('ahs-app')
 
 	// update mirrors
 
-	mirrorStory(after,storyID)
-	legacyStory(after,storyID)
+	mirrorStory(after,storyID,changes)
+	legacyStory(after,storyID,changes)
 
 	// update pointers
 
@@ -98,12 +98,13 @@ function someIn(array,...subset) {
  * @param {Object} story 
  * @param {string} storyID 
  */
-async function mirrorStory(story,storyID){
+async function mirrorStory(story,storyID,changes){
 	const schemas = await db.child('schemas').get().then(value)
 	const mirrors = ['article','snippet']
 	if(story.notified) mirrors.push('notif')
 	for(const type of mirrors){
 		const schema = Object.keys(schemas[type])
+		if(someIn(schema,changes)) continue
 		const mirror = Object.fromEntries(
 			Object.entries(story).filter(([key])=>schema.includes(key))
 		)
@@ -174,7 +175,7 @@ async function categoryStoryIDs(categoryID,storyID,insert){
 	if(insert){
 		const snippets = await db.child('snippets').get().then(value)
 		const index = siblingIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
-		index < 0 ? siblingIDs.push(storyID) : siblingIDs.splice(index,0,id)
+		index < 0 ? siblingIDs.push(storyID) : siblingIDs.splice(index,0,storyID)
 	}else{
 		const ref = await legacyRef(categoryID)
 		ref.child(storyID).remove()
