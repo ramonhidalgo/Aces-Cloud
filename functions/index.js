@@ -171,7 +171,6 @@ async function categoryThumbnail(categoryID){
 	.sort( (a,b) => b.featured - a.featured ) // prioritize featured articles
 	.slice(0, 3) // trim to first 4 articles
 	.map( snippet => snippet.thumbURLs[0] ) // map to image array
-	log(category.thumbURLs)
 	categoryRef.set(category)
 }
 
@@ -182,21 +181,24 @@ async function categoryThumbnail(categoryID){
  * @param {Boolean} insert 
  */
 async function categoryStoryIDs(categoryID,storyID,insert){
-	const categoryRef = db.child('categories/'+categoryID)
-	const category = await categoryRef.get().then(value)
-	const siblingIDs = category.articleIDs.filter(x=>x!==storyID)
-	if(insert){
+	const storyIDsRef = db.child('categories').child(categoryID).child('articleIDs')
+	let storyIDs = await storyIDsRef.get().then(value)
+	storyIDs = storyIDs.filter(x=>x!==storyID)
+	log(categoryID,storyID,storyIDs)
+	if (insert) {
 		const snippets = await db.child('snippets').get().then(value)
-		const index = siblingIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
-		index < 0 ? siblingIDs.push(storyID) : siblingIDs.splice(index,0,storyID)
-	}else{
+		const index = storyIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
+		index < 0 ? storyIDs.push(storyID) : storyIDs.splice(index,0,storyID)
+		log(index)
+	} else {
 		const ref = await legacyRef(categoryID)
-		ref.child(storyID).remove()
+		ref.child(storyID).remove().catch(e=>log(e))
 	}
-	categoryRef.child('articleIDs').set(siblingIDs)
+	log(storyIDs)
+	storyIDsRef.set(storyIDs).catch(e=>log(e))
 }
 
-exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async () => {
+exports.checkPendingNotifs = functions.pubsub.schedule('* * * * 5').onRun(async () => {
 	const now = Math.trunc(Date.now()/1000)
 	const sentNotifIDs = await db.child('notifIDs').get().then(value) || []
 	const allNotifs = Object.entries(
@@ -299,7 +301,6 @@ async function discord({ id, author, title, description }) {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
 	})
-	log(response)
 }
 
 const rot13 = string => string.replace(/[a-z]/gi,c=>'NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm'['ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.indexOf(c)])
