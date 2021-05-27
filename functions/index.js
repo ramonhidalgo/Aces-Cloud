@@ -198,7 +198,7 @@ async function categoryStoryIDs(categoryID,storyID,insert){
 	storyIDsRef.set(storyIDs).catch(e=>log(e))
 }
 
-exports.checkPendingNotifs = functions.pubsub.schedule('* * * * 5').onRun(async () => {
+exports.checkPendingNotifs = functions.pubsub.schedule('*/5 * * * *').onRun(async () => {
 	const now = Math.trunc(Date.now()/1000)
 	const sentNotifIDs = await db.child('notifIDs').get().then(value) || []
 	const allNotifs = Object.entries(
