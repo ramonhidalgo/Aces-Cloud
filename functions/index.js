@@ -13,6 +13,7 @@ const appLegacy = admin.initializeApp({
 	databaseURL: 'https://arcadia-high-mobile.firebaseio.com'
 },'legacy')
 const dbLegacy = admin.database(appLegacy).ref()
+const auth = admin.auth(app)
 
 /**
  * Picking up from Aces's modification of the stories tree,
@@ -21,7 +22,14 @@ const dbLegacy = admin.database(appLegacy).ref()
  * category articleID lists, category thumbnails, and Discord logs.
  */
 exports.publishStory = functions.database.instance('ahs-app')
-.ref('/storys/{storyID}').onWrite( ( change, { params: {storyID} } ) => {
+.ref('/storys/{storyID}').onWrite( async (
+		change,
+		{ 
+			params: { storyID },
+			auth: { uid },
+		}
+	) => {
+
 	const before = change.before.val()
 	const after = change.after.val()
 	const changes = diff(before,after)
@@ -48,8 +56,13 @@ exports.publishStory = functions.database.instance('ahs-app')
 		categoryThumbnail(after.categoryID)
 
 	// log to discord
-
-	discord(storyID, '✏️ ' + after.title, formattedDiff(before,after))
+	const email = await idToEmail(uid)
+	discord({
+		author: email,
+		id: storyID, 
+		title: '✏️ ' + after.title, 
+		description: formattedDiff(before,after),
+	})
 
 	return true
 })
@@ -200,9 +213,14 @@ exports.checkPendingNotifs = functions.pubsub.schedule('* * * * *').onRun(async 
 	)
 	log(`saw ${readyNotifIDs.length} notifs ready to be sent`)
 	readyNotifs.forEach( ([id, notif]) => {
-		db.child(`notifs/${id}/notifTimestamp`).set(now)
+		db.child('notifs').child(id).child('notifTimestamp').set(now)
 		pushNotif(id, notif)
-		discord(id, '🔔 ' + notif.title, notif.blurb)
+		discord({
+			author: '',
+			id,
+			title: '🔔 ' + notif.title,
+			description: notif.blurb
+		})
 		log(`sent <${id}>: ${notif.title}`)
 	})
 	db.child('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
@@ -247,18 +265,29 @@ async function pushNotif(id, notif) {
 }
 
 /**
+ * Converts a user's ID into their email
+ * @param {String} uid 
+ * @returns {String} email
+ */
+async function idToEmail(uid){
+	const user = await auth.getUser(uid)
+	return user.email || ''
+}
+
+/**
  * Sends a message to the Discord webhook
  * @param {string} id 
  * @param {string} title 
  * @param {string} description 
  */
-async function discord(id='', title='', description='') {
+async function discord({ id, author, title, description }) {
 	const url = 'https://' + await db.child('secrets/webhook').get().then(value)
 	const payload = {
 		username: 'Aces Cloud',
 		avatar_url: 'https://edit.ahs.app/icon.png',
 		content: '',
 		embeds: [{
+			author: { name: author },
 			color: 0x995eff,
 			url: 'https://editor.ahs.app/'+id,
 			title,
@@ -267,11 +296,10 @@ async function discord(id='', title='', description='') {
 	}
 	const response = await fetch(url, {
 		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json'
-		},
+		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
 	})
+	log(response)
 }
 
 const rot13 = string => string.replace(/[a-z]/gi,c=>'NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm'['ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.indexOf(c)])
