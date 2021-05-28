@@ -47,6 +47,9 @@ exports.publishStory = functions.database.instance('ahs-app')
 	if(someIn(changes,'timestamp','categoryID'))
 		categoryStoryIDs(after.categoryID,storyID,true)
 
+	if(before.notified && !after.notified)
+		removeNotif(storyID)
+
 	// update thumbnails
 
 	if(someIn(changes,'categoryID'))
@@ -196,6 +199,15 @@ async function categoryStoryIDs(categoryID,storyID,insert){
 	}
 	log(storyIDs)
 	storyIDsRef.set(storyIDs).catch(e=>log(e))
+}
+
+/**
+ * Remove a story from the notification list
+ * @param {String} storyID 
+ */
+async function removeNotif(storyID){
+	const ref = db.child('notifIDs')
+	ref.set((await ref.get().then(value)).filter(x=>x!==storyID))
 }
 
 exports.checkPendingNotifs = functions.pubsub.schedule('*/5 * * * *').onRun(async () => {
