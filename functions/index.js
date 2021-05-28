@@ -187,7 +187,7 @@ async function categoryStoryIDs(categoryID,storyID,insert){
 	const storyIDsRef = db.child('categories').child(categoryID).child('articleIDs')
 	let storyIDs = await storyIDsRef.get().then(value)
 	storyIDs = storyIDs.filter(x=>x!==storyID)
-	log(categoryID,storyID,storyIDs)
+	log(insert,categoryID,storyID,storyIDs)
 	if (insert) {
 		const snippets = await db.child('snippets').get().then(value)
 		const index = storyIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
@@ -197,7 +197,7 @@ async function categoryStoryIDs(categoryID,storyID,insert){
 		const ref = await legacyRef(categoryID)
 		ref.child(storyID).remove().catch(e=>log(e))
 	}
-	log(storyIDs)
+	log(insert,categoryID,storyID,storyIDs)
 	storyIDsRef.set(storyIDs).catch(e=>log(e))
 }
 
