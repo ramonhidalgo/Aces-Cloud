@@ -21,42 +21,36 @@ const auth = admin.auth(app)
  * mirrors of the story on the snippets tree and the legacy database,
  * category articleID lists, category thumbnails, and Discord logs.
  */
-exports.publishStory = functions.database.instance('ahs-app')
-.ref('/storys/{storyID}').onWrite( async (
-		change,
-		{ 
-			params: { storyID },
-			auth: { uid },
-		}
-	) => {
+exports.publishStory = functions.database
+.instance('ahs-app')
+.ref('/storys/{storyID}')
+.onWrite( async ( change, { params: { storyID }, auth: { uid }, } ) => {
 
 	const before = change.before.val()
 	const after = change.after.val()
 	const changes = diff(before,after)
-
-	// update mirrors
-
+	
+	// clone story into various places
 	mirrorStory(after,storyID,changes)
 	legacyStory(after,storyID,changes)
 
-	// update pointers
-
+	// update categories
 	if(someIn(changes,'categoryID') && 'categoryID' in before)
 		categoryStoryIDs(before.categoryID,storyID,false)
 
 	if(someIn(changes,'timestamp','categoryID'))
 		categoryStoryIDs(after.categoryID,storyID,true)
 
+	// remove notification if unnotified
 	if(before.notified && !after.notified)
 		removeNotif(storyID)
 
 	// update thumbnails
-
-	if(someIn(changes,'categoryID'))
-		categoryThumbnail(before.categoryID)
+	if (someIn(changes,'categoryID'))
+			categoryThumbnail(before.categoryID)
 	
-	if(someIn(changes,'thumbURLs','categoryID'))
-		categoryThumbnail(after.categoryID)
+	if (someIn(changes,'featured','timestamp','thumbURLs','categoryID'))
+			categoryThumbnail(after.categoryID)
 
 	// log to discord
 	const email = await idToEmail(uid)
@@ -66,8 +60,6 @@ exports.publishStory = functions.database.instance('ahs-app')
 		title: '✏️ ' + after.title, 
 		description: formattedDiff(before,after),
 	})
-
-	return true
 })
 
 /**
@@ -165,16 +157,16 @@ async function legacyStory(story,storyID){
  * @param {string} categoryID 
  */
 async function categoryThumbnail(categoryID){
-	const categoryRef = db.child('categories/'+categoryID)
-	const category = await categoryRef.get().then(value)
+	const ref = db.child('categories/'+categoryID)
+	const storyIDs = await ref.child('articleIDs').get().then(value)
 	const snippets = await db.child('snippets').get().then(value)
-	category.thumbURLs = category.articleIDs
+	const thumbURLs = storyIDs
 	.map( id => snippets[id] )
 	.filter( snippet => 'thumbURLs' in snippet ) // select articles with images
 	.sort( (a,b) => b.featured - a.featured ) // prioritize featured articles
 	.slice(0, 3) // trim to first 4 articles
 	.map( snippet => snippet.thumbURLs[0] ) // map to image array
-	categoryRef.set(category)
+	ref.child('thumbURLs').set(thumbURLs)
 }
 
 /**
@@ -184,21 +176,18 @@ async function categoryThumbnail(categoryID){
  * @param {Boolean} insert 
  */
 async function categoryStoryIDs(categoryID,storyID,insert){
-	const storyIDsRef = db.child('categories').child(categoryID).child('articleIDs')
-	let storyIDs = await storyIDsRef.get().then(value)
+	const ref = db.child('categories').child(categoryID).child('articleIDs')
+	let storyIDs = await ref.get().then(value)
 	storyIDs = storyIDs.filter(x=>x!==storyID)
-	log(insert,categoryID,storyID,storyIDs)
 	if (insert) {
 		const snippets = await db.child('snippets').get().then(value)
 		const index = storyIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
 		index < 0 ? storyIDs.push(storyID) : storyIDs.splice(index,0,storyID)
-		log(index)
 	} else {
 		const ref = await legacyRef(categoryID)
-		ref.child(storyID).remove().catch(e=>log(e))
+		ref.child(storyID).remove()
 	}
-	log(insert,categoryID,storyID,storyIDs)
-	storyIDsRef.set(storyIDs).catch(e=>log(e))
+	await ref.set(storyIDs)
 }
 
 /**
@@ -303,7 +292,7 @@ async function discord({ id, author, title, description }) {
 		embeds: [{
 			author: { name: author },
 			color: 0x995eff,
-			url: 'https://editor.ahs.app/'+id,
+			url: 'https://editor.ahs.app/' + id,
 			title,
 			description,
 		}],

@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/ahsappdevteam/firebase-functions#readme",
   "dependencies": {
+    "firebase-admin": "^9.9.0",
     "firebase-functions": "^3.14.1"
   }
 }
