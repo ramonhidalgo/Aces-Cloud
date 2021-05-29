@@ -1,5 +1,5 @@
 const { pubsub } = require('firebase-functions')
-const { discord } = require('./discord')
+const { discord } = require('../utils/discord')
 const { dbGet, dbSet } = require('../utils/database')
 
 exports.publishNotif = pubsub.schedule('*/5 * * * *').onRun(async () => {

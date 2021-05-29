@@ -20,5 +20,5 @@ const path = paths => Array.isArray(paths) ? paths.join('/') : paths
 
 exports.auth = admin.auth(app)
 exports.dbGet = paths => db.child(path(paths)).get().then(snapshot=>snapshot.val())
-exports.dbSet = (paths,val) => db.child(path(paths).join('/')).set(val)
-exports.dbSetLegacy = (paths,val) => dbLegacy.child(path(paths).join('/')).set(val)
+exports.dbSet = (paths,val) => db.child(path(paths)).set(val)
+exports.dbSetLegacy = (paths,val) => dbLegacy.child(path(paths)).set(val)

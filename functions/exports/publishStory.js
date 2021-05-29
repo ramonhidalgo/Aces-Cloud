@@ -1,6 +1,7 @@
 const { database } = require('firebase-functions')
-const { discord } = require('./discord')
+const { discord } = require('../utils/discord')
 const { dbGet, dbSet, dbSetLegacy, auth } = require('../utils/database')
+const { log, warn, error } = require('firebase-functions/lib/logger')
 
 exports.publishStory = database
 .instance('ahs-app')
@@ -102,6 +103,7 @@ async function mirrorStory(story,storyID,changes){
 		const mirror = Object.fromEntries(
 			Object.entries(story).filter(([key])=>schema.includes(key))
 		)
+		log({mirror})
 		dbSet( [type+'s',storyID], mirror )
 	}
 }
@@ -123,18 +125,22 @@ async function legacyStory(story,storyID){
 			hasHTML: true,
 		}
 	}
-	dbSetLegacy(legacyPath(story.categoryID,storyID),legacyStory)
+	dbSetLegacy(await legacyPath(story.categoryID,storyID),legacyStory)
 }
 
 /**
- * Get the path of a category in a legacy database
+ * Get the path of a story in a legacy database
  * @param {string} categoryID 
  * @returns {string}
  */
- async function legacyPath(categoryID){
-	return Object.entries(await dbGet('locations')).find(
-		([,{categoryIDs}]) => categoryIDs.includes(categoryID)
-	)[0]
+ async function legacyPath(categoryID,storyID){
+	return [
+		Object.entries(await dbGet('locations')).find(
+			([,{categoryIDs}]) => categoryIDs.includes(categoryID)
+		)[0],
+		categoryID,
+		storyID,
+	]
 }
 
 /**
@@ -151,7 +157,7 @@ async function categoryThumbnail(categoryID){
 	.sort( (a,b) => b.featured - a.featured ) // prioritize featured articles
 	.slice(0, 3) // trim to first 4 articles
 	.map( snippet => snippet.thumbURLs[0] ) // map to image array
-	await dbSet([...path,'thumbURLs'], thumbURLs )
+	dbSet([...path,'thumbURLs'], thumbURLs )
 }
 
 /**
@@ -169,9 +175,9 @@ async function categoryStoryIDs(categoryID,storyID,insert){
 		const index = storyIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
 		index < 0 ? storyIDs.push(storyID) : storyIDs.splice(index,0,storyID)
 	} else {
-		await dbSetLegacy(legacyPath(categoryID,storyID),null)
+		dbSetLegacy(await legacyPath(categoryID,storyID),null)
 	}
-	await dbSet(path,storyIDs)
+	dbSet(path,storyIDs)
 }
 
 /**

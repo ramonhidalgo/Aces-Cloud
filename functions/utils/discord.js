@@ -1,5 +1,5 @@
 const fetch = require('node-fetch')
-const { db, value } = require('./database')
+const { dbGet } = require('./database')
 
 /**
  * Sends a message to the Discord webhook
@@ -8,7 +8,7 @@ const { db, value } = require('./database')
  * @param {string} description 
  */
 exports.discord = async function discord({ id, author, title, description }) {
-	const url = 'https://' + await db.child('secrets/webhook').get().then(value)
+	const url = 'https://' + await dbGet('secrets/webhook')
 	const payload = {
 		username: 'Aces Cloud',
 		avatar_url: 'https://edit.ahs.app/icon.png',
