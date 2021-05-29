@@ -14,8 +14,8 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 var functions = firebase.functions();
-var incrementViews = functions.httpsCallable('incrementViews');
-incrementViews({ id: '-MER32wsoZq_3In5uYs_' }).then((result) => {
+var incrementView = functions.httpsCallable('incrementView');
+incrementView({ id: '-MER32wsoZq_3In5uYs_' }).then((result) => {
     // Read result of the Cloud Function.
     var sanitizedMessage = result.data.status;
   }).catch((error) => {
