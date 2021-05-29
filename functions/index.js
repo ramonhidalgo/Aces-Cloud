@@ -157,9 +157,9 @@ async function legacyStory(story,storyID){
  * @param {string} categoryID 
  */
 async function categoryThumbnail(categoryID){
-	const ref = db.child('categories/'+categoryID)
-	const storyIDs = await ref.child('articleIDs').get().then(value)
-	const snippets = await db.child('snippets').get().then(value)
+	const ref = db.child('categories').child(categoryID)
+	const storyIDs = await ref.child('articleIDs').get().then(value) || []
+	const snippets = await db.child('snippets').get().then(value) || []
 	const thumbURLs = storyIDs
 	.map( id => snippets[id] )
 	.filter( snippet => 'thumbURLs' in snippet ) // select articles with images
@@ -177,10 +177,10 @@ async function categoryThumbnail(categoryID){
  */
 async function categoryStoryIDs(categoryID,storyID,insert){
 	const ref = db.child('categories').child(categoryID).child('articleIDs')
-	let storyIDs = await ref.get().then(value)
+	let storyIDs = await ref.get().then(value) || []
 	storyIDs = storyIDs.filter(x=>x!==storyID)
 	if (insert) {
-		const snippets = await db.child('snippets').get().then(value)
+		const snippets = await db.child('snippets').get().then(value) || []
 		const index = storyIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
 		index < 0 ? storyIDs.push(storyID) : storyIDs.splice(index,0,storyID)
 	} else {
