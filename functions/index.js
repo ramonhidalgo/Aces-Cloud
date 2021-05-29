@@ -1,6 +1,6 @@
-const { publishStory } = require('./aces/publishStory')
-const { publishNotif } = require('./aces/publishNotif')
-const { incrementView } = require('./aces/incrementView')
+const { publishStory } = require('./exports/publishStory')
+const { publishNotif } = require('./exports/publishNotif')
+const { incrementView } = require('./exports/incrementView')
 
 exports.publishStory = publishStory
 exports.publishNotif = publishNotif

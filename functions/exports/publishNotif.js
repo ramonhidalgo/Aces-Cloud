@@ -1,13 +1,11 @@
 const { pubsub } = require('firebase-functions')
 const { discord } = require('./discord')
-const { db, value } = require('./database')
+const { dbGet, dbSet } = require('../utils/database')
 
 exports.publishNotif = pubsub.schedule('*/5 * * * *').onRun(async () => {
 	const now = Math.trunc(Date.now()/1000)
-	const sentNotifIDs = await db.child('notifIDs').get().then(value) || []
-	const allNotifs = Object.entries(
-		await db.child('notifs').get().then(value) || {}
-	)
+	const sentNotifIDs = await dbGet('notifIDs') || []
+	const allNotifs = Object.entries( await dbGet('notifs') || {} )
 	const readyNotifs = allNotifs.filter(
 		([id, notif]) =>
 		!sentNotifIDs.includes(id)
@@ -19,7 +17,7 @@ exports.publishNotif = pubsub.schedule('*/5 * * * *').onRun(async () => {
 	)
 	log(`saw ${readyNotifIDs.length} notifs ready to be sent`)
 	readyNotifs.forEach( ([id, notif]) => {
-		db.child('notifs').child(id).child('notifTimestamp').set(now)
+		dbSet( ['notifs',id,'notifTimestamp'], now )
 		pushNotif(id, notif)
 		discord({
 			author: '',
@@ -29,7 +27,7 @@ exports.publishNotif = pubsub.schedule('*/5 * * * *').onRun(async () => {
 		})
 		log(`sent <${id}>: ${notif.title}`)
 	})
-	db.child('notifIDs').set(sentNotifIDs.concat(readyNotifIDs))
+	dbSet( 'notifIDs', sentNotifIDs.concat(readyNotifIDs) )
 })
 
 /**

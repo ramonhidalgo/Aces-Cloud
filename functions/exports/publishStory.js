@@ -1,11 +1,11 @@
 const { database } = require('firebase-functions')
 const { discord } = require('./discord')
-const { db, dbLegacy, auth, value } = require('./database')
+const { dbGet, dbSet, dbSetLegacy, auth } = require('../utils/database')
 
 exports.publishStory = database
 .instance('ahs-app')
 .ref('/storys/{storyID}')
-.onWrite( async ( change, { params: { storyID }, auth: { uid }, } ) => {
+.onWrite( async ( change, { params: { storyID }, authType, auth } ) => {
 
 	const before = change.before.val()
 	const after = change.after.val()
@@ -34,9 +34,14 @@ exports.publishStory = database
 			categoryThumbnail(after.categoryID)
 
 	// log to discord
-	const email = await idToEmail(uid)
+	const user = authType === 'ADMIN'
+	? 'Aces Cloud'
+	: authType === 'USER'
+	? await idToEmail(auth.uid)
+	: 'Anonymous'
+	
 	discord({
-		author: email,
+		author: user,
 		id: storyID, 
 		title: '✏️ ' + after.title, 
 		description: formattedDiff(before,after),
@@ -88,7 +93,7 @@ function someIn(array,...subset) {
  * @param {string} storyID 
  */
 async function mirrorStory(story,storyID,changes){
-	const schemas = await db.child('schemas').get().then(value)
+	const schemas = await dbGet('schemas')
 	const mirrors = ['article','snippet']
 	if(story.notified) mirrors.push('notif')
 	for(const type of mirrors){
@@ -97,7 +102,7 @@ async function mirrorStory(story,storyID,changes){
 		const mirror = Object.fromEntries(
 			Object.entries(story).filter(([key])=>schema.includes(key))
 		)
-		db.child(type+'s').child(storyID).set(mirror)
+		dbSet( [type+'s',storyID], mirror )
 	}
 }
 
@@ -107,7 +112,7 @@ async function mirrorStory(story,storyID,changes){
  * @param {story} storyID 
  */
 async function legacyStory(story,storyID){
-	const schemas = await db.child('schemas').get().then(value)
+	const schemas = await dbGet('schemas')
 	const legacyStory = {
 		...Object.fromEntries(
 			Object.entries(story)
@@ -118,19 +123,18 @@ async function legacyStory(story,storyID){
 			hasHTML: true,
 		}
 	}
-	const ref = await legacyRef(story.categoryID)
-	ref.child(storyID).set(legacyStory)
+	dbSetLegacy(legacyPath(story.categoryID,storyID),legacyStory)
 }
 
 /**
- * Get the ref of a category in a legacy database
+ * Get the path of a category in a legacy database
  * @param {string} categoryID 
  * @returns {string}
  */
- async function legacyRef(categoryID){
-	return dbLegacy.child(Object.entries(await db.child('locations').get().then(value)).find(
+ async function legacyPath(categoryID){
+	return Object.entries(await dbGet('locations')).find(
 		([,{categoryIDs}]) => categoryIDs.includes(categoryID)
-	)[0]).child(categoryID)
+	)[0]
 }
 
 /**
@@ -138,16 +142,16 @@ async function legacyStory(story,storyID){
  * @param {string} categoryID 
  */
 async function categoryThumbnail(categoryID){
-	const ref = db.child('categories').child(categoryID)
-	const storyIDs = await ref.child('articleIDs').get().then(value) || []
-	const snippets = await db.child('snippets').get().then(value) || []
+	const path = ['categories',categoryID]
+	const storyIDs = await dbGet([...path,'articleIDs']) || []
+	const snippets = await dbGet('snippets') || []
 	const thumbURLs = storyIDs
 	.map( id => snippets[id] )
 	.filter( snippet => 'thumbURLs' in snippet ) // select articles with images
 	.sort( (a,b) => b.featured - a.featured ) // prioritize featured articles
 	.slice(0, 3) // trim to first 4 articles
 	.map( snippet => snippet.thumbURLs[0] ) // map to image array
-	ref.child('thumbURLs').set(thumbURLs)
+	await dbSet([...path,'thumbURLs'], thumbURLs )
 }
 
 /**
@@ -157,18 +161,17 @@ async function categoryThumbnail(categoryID){
  * @param {Boolean} insert 
  */
 async function categoryStoryIDs(categoryID,storyID,insert){
-	const ref = db.child('categories').child(categoryID).child('articleIDs')
-	let storyIDs = await ref.get().then(value) || []
+	const path = ['categories',categoryID,'articleIDs']
+	let storyIDs = await dbGet(path) || []
 	storyIDs = storyIDs.filter(x=>x!==storyID)
 	if (insert) {
-		const snippets = await db.child('snippets').get().then(value) || []
+		const snippets = await dbGet('snippets') || []
 		const index = storyIDs.findIndex(id=>snippets[id].timestamp < snippets[storyID].timestamp)
 		index < 0 ? storyIDs.push(storyID) : storyIDs.splice(index,0,storyID)
 	} else {
-		const ref = await legacyRef(categoryID)
-		ref.child(storyID).remove()
+		await dbSetLegacy(legacyPath(categoryID,storyID),null)
 	}
-	await ref.set(storyIDs)
+	await dbSet(path,storyIDs)
 }
 
 /**
@@ -176,8 +179,7 @@ async function categoryStoryIDs(categoryID,storyID,insert){
  * @param {String} storyID 
  */
 async function removeNotif(storyID){
-	const ref = db.child('notifIDs')
-	ref.set((await ref.get().then(value)).filter(x=>x!==storyID))
+	dbSet('notifIDs',(await dbGet('notifIDs')).filter(x=>x!==storyID))
 }
 /**
  * Converts a user's ID into their email
