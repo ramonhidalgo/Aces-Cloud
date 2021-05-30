@@ -1,33 +1,41 @@
 const { discord } = require('../utils/discord')
 const { dbGet, dbSet, dbSetLegacy, auth } = require('../utils/database')
+const { diff, formattedDiff, someIn, allIn } = require('../utils/objects')
+const levenshtein = require('js-levenshtein')
 
 exports.publishStory = async ( change, { params: { storyID }, authType, auth } ) => {
 
 	const before = change.before.val() || {}
 	const after = change.after.val() || {}
 	const changes = diff(before,after)
-	
-	// clone story into various places
-	mirrorStory(after,storyID,changes)
-	legacyStory(after,storyID,changes)
+
+	if (changes.length === 0 || allIn(changes,'relatedArticleIDs')) return
 
 	// update categories
-	if(someIn(changes,'categoryID') && before.categoryID)
+	if (someIn(changes,'categoryID') && before.categoryID)
 		categoryStoryIDs(before.categoryID,storyID,false)
 
-	if(someIn(changes,'timestamp','categoryID'))
+	if (someIn(changes,'timestamp','categoryID'))
 		categoryStoryIDs(after.categoryID,storyID,true)
 
 	// remove notification if unnotified
-	if(someIn(changes,'notified') && before.notified)
+	if (someIn(changes,'notified') && before.notified)
 		removeNotif(storyID)
 
 	// update thumbnails
 	if (someIn(changes,'categoryID'))
-			categoryThumbnail(before.categoryID)
+		categoryThumbnail(before.categoryID)
 	
 	if (someIn(changes,'featured','timestamp','thumbURLs','categoryID'))
-			categoryThumbnail(after.categoryID)
+		categoryThumbnail(after.categoryID)
+		
+	// find similar storys
+	if (someIn(changes,'title'))
+		await relatedStoryIDs(after,storyID)
+	
+	// clone story into various places
+	mirrorStory(after,storyID,changes)
+	legacyStory(after,storyID,changes)
 
 	// log to discord
 	const user = authType === 'ADMIN'
@@ -45,42 +53,23 @@ exports.publishStory = async ( change, { params: { storyID }, authType, auth } )
 }
 
 /**
- * Returns list of properties whose values are different between two objects 
- * @param {Object} a 
- * @param {Object} b 
- * @returns {Array}
+ * Sets an article with 4 related ones
+ * @param {Object} story 
+ * @param {string} storyID 
+ * @returns {Promise}
  */
-function diff (a,b) { 
-	return Object.keys({ ...a, ...b })
- 	.filter( k => JSON.stringify(a[k]) !== JSON.stringify(b[k]) )
-}
-
-/**
- * Returns a formatted list of properties and their before and after values
- * @param {Object} a 
- * @param {Object} b 
- * @returns {String}
- */
- function formattedDiff (a,b) {
-	return diff(a,b)
-	.map( k =>
-		[k,a[k],b[k]]
-		.map( s => s === undefined ? null : s )
-		.map( JSON.stringify )
-		.map( s => s.length > 16 ? s.substring(0,16) + '...' : s )
+async function relatedStoryIDs(story,storyID){
+	const snippets = await dbGet('snippets')
+	const categories = await dbGet('categories')
+	const title = story.title + ' '
+	const relatedArticleIDs = Object.keys(snippets)
+	.filter( id => ( id !== storyID ) /*&& ( categories[snippets[id].categoryID].visible )*/ )
+	.sort( ( a, b ) =>
+		levenshtein( snippets[a].title + ' ', title ) -
+		levenshtein( snippets[b].title + ' ', title )
 	)
-	.map(([k,a,b])=>`${k}: ${a} → ${b}`)
-	.join('\n')
-}
-
-/**
- * Checks if an array includes any of the subset
- * @param {any[]} array 
- * @param  {...any} subset 
- * @returns {Boolean}
- */
-function someIn(array,...subset) {
-	return array.some(element=>subset.includes(element))
+	.slice( 0, 4 )
+	return dbSet(['storys',storyID,'relatedArticleIDs'], relatedArticleIDs)
 }
 
 /**
