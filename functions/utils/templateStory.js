@@ -1,6 +1,6 @@
 const { dbGet } = require('./database')
 
-exports.templateStory = () => {
+exports.templateStory = async () => {
 	const schema = await dbGet('schemas/story')
 	const template = {}
 	for (const key in schema)
@@ -10,4 +10,5 @@ exports.templateStory = () => {
 			'Boolean': false,
 			'Int': 0,
 		}[schema[key]]
+	return template
 }

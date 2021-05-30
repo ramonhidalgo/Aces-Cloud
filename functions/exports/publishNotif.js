@@ -1,8 +1,7 @@
-const { pubsub } = require('firebase-functions')
 const { discord } = require('../utils/discord')
 const { dbGet, dbSet } = require('../utils/database')
 
-exports.publishNotif = pubsub.schedule('*/5 * * * *').onRun(async () => {
+exports.publishNotif = async () => {
 	const now = Math.trunc(Date.now()/1000)
 	const sentNotifIDs = await dbGet('notifIDs') || []
 	const allNotifs = Object.entries( await dbGet('notifs') || {} )
@@ -28,7 +27,7 @@ exports.publishNotif = pubsub.schedule('*/5 * * * *').onRun(async () => {
 		log(`sent <${id}>: ${notif.title}`)
 	})
 	dbSet( 'notifIDs', sentNotifIDs.concat(readyNotifIDs) )
-})
+}
 
 /**
  * Pushes a notification to Firebase Cloud notifications' REST API
@@ -36,7 +35,7 @@ exports.publishNotif = pubsub.schedule('*/5 * * * *').onRun(async () => {
  * @param {Object} notif 
  */
 async function pushNotif(id, notif) {
-	const auth = await db.child('secrets/messaging').get().then(value)
+	const auth = await dbGet('secrets/messaging')
 	let payloads = [{
 		notification: {
 			title: notif.title,

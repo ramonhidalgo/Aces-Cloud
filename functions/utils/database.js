@@ -1,16 +1,12 @@
-const { config } = require('firebase-functions')
 const admin = require('firebase-admin')
 
-const dbConfig = config().firebase
 const app = admin.initializeApp({
-	...dbConfig,
 	databaseURL: 'https://ahs-app.firebaseio.com'
 },'main')
 
 const db = admin.database(app).ref()
 
 const appLegacy = admin.initializeApp({
-	...dbConfig,
 	databaseURL: 'https://arcadia-high-mobile.firebaseio.com'
 },'legacy')
 

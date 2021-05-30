@@ -1,15 +1,10 @@
-const { database } = require('firebase-functions')
 const { discord } = require('../utils/discord')
 const { dbGet, dbSet, dbSetLegacy, auth } = require('../utils/database')
-const { log, warn, error } = require('firebase-functions/lib/logger')
 
-exports.publishStory = database
-.instance('ahs-app')
-.ref('/storys/{storyID}')
-.onWrite( async ( change, { params: { storyID }, authType, auth } ) => {
+exports.publishStory = async ( change, { params: { storyID }, authType, auth } ) => {
 
-	const before = change.before.val()
-	const after = change.after.val()
+	const before = change.before.val() || {}
+	const after = change.after.val() || {}
 	const changes = diff(before,after)
 	
 	// clone story into various places
@@ -17,14 +12,14 @@ exports.publishStory = database
 	legacyStory(after,storyID,changes)
 
 	// update categories
-	if(someIn(changes,'categoryID') && 'categoryID' in before)
+	if(someIn(changes,'categoryID') && before.categoryID)
 		categoryStoryIDs(before.categoryID,storyID,false)
 
 	if(someIn(changes,'timestamp','categoryID'))
 		categoryStoryIDs(after.categoryID,storyID,true)
 
 	// remove notification if unnotified
-	if(before.notified && !after.notified)
+	if(someIn(changes,'notified') && before.notified)
 		removeNotif(storyID)
 
 	// update thumbnails
@@ -47,7 +42,7 @@ exports.publishStory = database
 		title: '✏️ ' + after.title, 
 		description: formattedDiff(before,after),
 	})
-})
+}
 
 /**
  * Returns list of properties whose values are different between two objects 
@@ -57,7 +52,7 @@ exports.publishStory = database
  */
 function diff (a,b) { 
 	return Object.keys({ ...a, ...b })
- 	.filter( k => JSON.stringify(a?.[k]) !== JSON.stringify(b?.[k]) )
+ 	.filter( k => JSON.stringify(a[k]) !== JSON.stringify(b[k]) )
 }
 
 /**
@@ -103,7 +98,6 @@ async function mirrorStory(story,storyID,changes){
 		const mirror = Object.fromEntries(
 			Object.entries(story).filter(([key])=>schema.includes(key))
 		)
-		log({mirror})
 		dbSet( [type+'s',storyID], mirror )
 	}
 }
