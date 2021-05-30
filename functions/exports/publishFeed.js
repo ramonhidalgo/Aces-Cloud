@@ -16,12 +16,15 @@ const parse_xml = str => parser.parseFromString(str)
 const html_to_md = html => turned.turndown(html)
 const md_to_html = md => marked(md)
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+ 
 exports.publishFeed = async () => {
 	
 	const feeds = await dbGet('feeds')
 	const template = await templateStory()
 
 	for (const key in feeds) {
+
 		const feed = feeds[key]
 
 		const items = await fetch(feed.url)
@@ -37,6 +40,9 @@ exports.publishFeed = async () => {
 			.then(xml => xml.getElementsByTagName(feed.item))
 
 		for (const item of items.slice(0,12)) {
+			// temporary measure to stop categoryID write collisions
+			sleep(100)
+
 			let story = { }
 
 			// fill from schema
@@ -80,6 +86,7 @@ exports.publishFeed = async () => {
 					story = {
 						...story,
 						title: story.title.split(/#\d+\s/)[1] || '',
+						imageURLs: [item.getElementsByTagName('itunesXimage')[0]?.getAttribute('href')],
 					}
 			}
 			
