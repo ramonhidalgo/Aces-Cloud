@@ -62,7 +62,7 @@ exports.publishFeed = async () => {
 
 			// find image tags from the story
 			story.imageURLs = story.body.match(/(?<=\<img src\=['"]).*?(?=['"].*?\>)/g) || []
-
+			
 			// re-render a cleaner body from markdown
 			story.body = md_to_html(story.markdown)
 
@@ -73,22 +73,29 @@ exports.publishFeed = async () => {
 						...story,
 						videoIDs: [story.videoID],
 						imageURLs: [`https://img.youtube.com/vi/${story.videoID}/maxresdefault.jpg`],
-						title: story.title.split(': ')[1],
+						title: story.title.split(': ')[1] || '',
 					}
 					break
 				case 'KiA':
 					story = {
 						...story,
-						title: story.title.split(/#\d+\s/)[1],
+						title: story.title.split(/#\d+\s/)[1] || '',
 					}
 			}
 			
 			// upload external images to imgBB
-			for( const set of await Promise.all(story.imageURLs.map(imgbb)))
-				story = { ...story, ...set }
+			const sets = await Promise.all(story.imageURLs.map(imgbb))
+			story.imageURLs = sets.map(x=>x.imageURL)
+			story.thumbURLs = sets.map(x=>x.thumbURL)
 
 			// remove temp props
-			story = Object.fromEntries(Object.entries(story).filter(([key])=>key in template))
+			story = Object.fromEntries(
+				Object.entries(story)
+				.filter( ([key,value]) => 
+					( key in template ) &&
+					( Array.isArray(value) ? ( value.length > 0 ) : ( value !== undefined ) )
+				)
+			)
 
 			// publish
 			dbSet(['storys',storyID],story)
