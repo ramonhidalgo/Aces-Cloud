@@ -9,14 +9,23 @@ exports.publishStory = async ( change, { params: { storyID }, authType, auth } )
 	const after = change.after.val() || {}
 	const changes = diff(before,after)
 
-	if (changes.length === 0 || allIn(changes,'relatedArticleIDs')) return
+	const categories = await dbGet('categories')
+
+	if (changes.length === 0) return
 
 	// update categories
-	if (someIn(changes,'categoryID') && before.categoryID)
+	if (someIn(changes,'categoryID') && 'categoryID' in before)
 		categoryStoryIDs(before.categoryID,storyID,false)
 
 	if (someIn(changes,'timestamp','categoryID'))
 		categoryStoryIDs(after.categoryID,storyID,true)
+
+	// update featured category
+	if (someIn(changes,'featured') && 'featured' in before)
+		categoryStoryIDs(
+			'Featured', storyID,
+			after.featured && categories[after.categoryID].visible
+		)
 
 	// remove notification if unnotified
 	if (someIn(changes,'notified') && before.notified)
@@ -31,7 +40,7 @@ exports.publishStory = async ( change, { params: { storyID }, authType, auth } )
 		
 	// find similar storys
 	if (someIn(changes,'title'))
-		await relatedStoryIDs(after,storyID)
+		relatedStoryIDs(after,storyID)
 	
 	// clone story into various places
 	mirrorStory(after,storyID,changes)
@@ -63,13 +72,14 @@ async function relatedStoryIDs(story,storyID){
 	const categories = await dbGet('categories')
 	const title = story.title + ' '
 	const relatedArticleIDs = Object.keys(snippets)
-	.filter( id => ( id !== storyID ) /*&& ( categories[snippets[id].categoryID].visible )*/ )
+	.filter( id => ( id !== storyID ) && categories[snippets[id].categoryID]?.visible )
 	.sort( ( a, b ) =>
 		levenshtein( snippets[a].title + ' ', title ) -
 		levenshtein( snippets[b].title + ' ', title )
 	)
 	.slice( 0, 4 )
-	return dbSet(['storys',storyID,'relatedArticleIDs'], relatedArticleIDs)
+	dbSet(['storys',storyID,'relatedArticleIDs'], relatedArticleIDs)
+	return
 }
 
 /**

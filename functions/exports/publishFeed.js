@@ -2,7 +2,6 @@ const { discord } = require('../utils/discord')
 const { dbGet, dbSet } = require('../utils/database')
 const { id } = require('../utils/id')
 const { templateStory } = require('../utils/templateStory')
-const { log, warn, error } = require('firebase-functions/lib/logger')
 
 const fetch = require('node-fetch')
 const DOMParser = require('dom-parser')
