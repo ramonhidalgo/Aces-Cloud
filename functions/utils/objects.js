@@ -1,3 +1,5 @@
+const md5 = require('md5')
+
 /**
  * Checks if an array includes any of the subset
  * @param {any[]} array 
@@ -34,7 +36,11 @@ exports.diff = (a,b) => Object.keys({ ...a, ...b })
 	[k,a[k],b[k]]
 	.map( s => s === undefined ? null : s )
 	.map( JSON.stringify )
-	.map( s => s.length > 16 ? s.substring(0,16) + '...' : s )
+	.map( s =>
+		s.length > 32
+		? `${s.substr(0,10)}…(L${s.length}#${md5(s).substr(-4)})…${s.substr(-10)}`
+		: s
+	)
 )
 .map(([k,a,b])=>`${k}: ${a} → ${b}`)
 .join('\n')
