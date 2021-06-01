@@ -32,16 +32,16 @@ exports.diff = (a,b) => Object.keys({ ...a, ...b })
  * @returns {String}
  */
  exports.formattedDiff = (a,b) => exports.diff(a,b)
-.map( k =>
-	[k,a[k],b[k]]
+.map( k => [ k, ...[a[k],b[k]]
 	.map( s => s === undefined ? null : s )
+	.map( s => Array.isArray(s) ? 'Array·' + s.length : s )
 	.map( JSON.stringify )
 	.map( s =>
-		s.length > 32
-		? `${s.substr(0,10)}…(L${s.length}#${md5(s).substr(-4)})…${s.substr(-10)}`
-		: s
+		s.length > 22 ?
+		s.substr(0,20) + ' ·' + s.length :
+		s
 	)
-)
+])
 .map(([k,a,b])=>`${k}: ${a} → ${b}`)
 .join('\n')
 
