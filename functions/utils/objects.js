@@ -1,5 +1,3 @@
-const md5 = require('md5')
-
 /**
  * Checks if an array includes any of the subset
  * @param {any[]} array 
